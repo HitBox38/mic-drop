@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PencilEdit02Icon } from "@hugeicons/core-free-icons";
+import { useDraggable } from "@dnd-kit/core";
+import { m, useReducedMotion } from "motion/react";
 
 import {
   ContextMenu,
@@ -12,12 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getContrastForeground } from "@/lib/color";
 import { formatHotkeyLabel } from "@/lib/hotkeys";
+import { motionInstant, padLayoutSpring, padLiftSpring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { DeleteClipDialog } from "./components/DeleteClipDialog";
 import { ResizeHandles } from "./components/ResizeHandles";
 import { PAD_FOREGROUND_CLASS, PAD_ICON_SCALE_CLASS, PAD_NAME_SCALE_CLASS } from "./constants";
-import { usePadGridDrag } from "./hooks/usePadGridDrag";
 import { usePadResize } from "./hooks/usePadResize";
 import type { Props } from "./types";
 
@@ -29,14 +31,24 @@ export function Pad({
   rowStepPx,
   isSelected,
   layoutLocked,
+  dragPreview,
+  resizePreview,
+  isDragging,
+  suppressClick,
+  dndDisabled,
   onPlay,
   onEdit,
   onDuplicate,
   onDelete,
   onLayoutChange,
-  onMove,
+  onResizePreviewChange,
 }: Props) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: clip.id,
+    disabled: dndDisabled,
+  });
 
   const resize = usePadResize({
     clip,
@@ -45,26 +57,28 @@ export function Pad({
     columnStepPx,
     rowStepPx,
     onResize: onLayoutChange,
+    onPreviewChange: onResizePreviewChange,
   });
 
-  const drag = usePadGridDrag({
-    clip,
-    clips,
-    gridColumns,
-    columnStepPx,
-    rowStepPx,
-    enabled: !layoutLocked,
-    onMove,
-  });
-
-  const preview = resize.preview ?? drag.preview;
-  const layout = preview?.layout ?? clip.layout;
-  const isInvalidPreview = preview ? !preview.valid : false;
+  const preview = resize.preview;
+  const layout = clip.layout;
+  const isResizing = Boolean(resize.visual);
+  const activePreview = preview ?? dragPreview ?? resizePreview;
+  const isInvalidPreview = activePreview ? !activePreview.valid : false;
   const scaleKey = Math.min(layout.colSpan, layout.rowSpan);
   const foreground = PAD_FOREGROUND_CLASS[getContrastForeground(clip.color)];
+  const padStyle = {
+    gridColumn: `${layout.col} / span ${layout.colSpan}`,
+    gridRow: `${layout.row} / span ${layout.rowSpan}`,
+  } as CSSProperties;
+  const shellStyle = {
+    backgroundColor: clip.color,
+    transformOrigin: resize.visual?.transformOrigin,
+    "--pad-resize-scale": resize.visual?.scale ?? "1 1",
+  } as CSSProperties;
 
   function handlePlay() {
-    if (drag.wasDraggingRef.current) {
+    if (isDragging || suppressClick) {
       return;
     }
     onPlay(clip.id);
@@ -74,7 +88,10 @@ export function Pad({
     <ContextMenu>
       <ContextMenuTrigger
         render={
-          <div
+          <m.div
+            ref={setNodeRef}
+            {...attributes}
+            {...listeners}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -83,25 +100,43 @@ export function Pad({
                 handlePlay();
               }
             }}
+            layout={!shouldReduceMotion && !isDragging && !isResizing}
+            layoutDependency={[layout.col, layout.row, layout.colSpan, layout.rowSpan]}
+            animate={isDragging || isResizing ? undefined : { scale: 1 }}
+            transition={
+              isDragging || isResizing
+                ? undefined
+                : {
+                    layout: shouldReduceMotion ? motionInstant : padLayoutSpring,
+                    scale: shouldReduceMotion ? motionInstant : padLiftSpring,
+                  }
+            }
           />
         }
         className={cn(
-          "group relative flex flex-col justify-between rounded-xl border border-white/10 p-3 text-left shadow-sm transition-[transform,filter]",
-          "hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "group relative flex flex-col justify-between rounded-xl p-3 text-left",
+          "transition-[filter]",
+          "touch-none hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          !isDragging && !isResizing && "active:scale-[0.98]",
           isSelected && "ring-2 ring-primary",
           !layoutLocked && "cursor-grab active:cursor-grabbing",
-          preview && "z-20",
+          (isResizing || isDragging) && "z-20",
+          isDragging && "opacity-40",
           isInvalidPreview && "ring-2 ring-destructive",
         )}
-        style={{
-          backgroundColor: clip.color,
-          gridColumn: `${layout.col} / span ${layout.colSpan}`,
-          gridRow: `${layout.row} / span ${layout.rowSpan}`,
-        }}
-        onPointerDown={drag.handlePointerDown}
+        style={padStyle}
         onClick={handlePlay}
       >
-        <div className="flex items-start justify-between gap-2">
+        <div
+          aria-hidden="true"
+          data-pad-shell
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-xl border border-white/10 shadow-sm",
+            isResizing && "scale-(--pad-resize-scale)",
+          )}
+          style={shellStyle}
+        />
+        <div className="relative z-10 flex items-start justify-between gap-2">
           <span className={cn("leading-none", PAD_ICON_SCALE_CLASS[scaleKey])}>
             {clip.icon ?? "🔊"}
           </span>
@@ -131,7 +166,7 @@ export function Pad({
             </button>
           </div>
         </div>
-        <div>
+        <div className="relative z-10">
           <p
             className={cn(
               "line-clamp-2 font-semibold",

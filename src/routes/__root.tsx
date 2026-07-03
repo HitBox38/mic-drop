@@ -1,4 +1,5 @@
 import { createRootRoute } from "@tanstack/react-router";
+import { LazyMotion, domAnimation } from "motion/react";
 
 import { AppShell } from "@/components/app-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,8 +23,10 @@ function RootComponent() {
   }
 
   return (
-    <TooltipProvider>
-      <AppShell />
-    </TooltipProvider>
+    <LazyMotion features={domAnimation}>
+      <TooltipProvider>
+        <AppShell />
+      </TooltipProvider>
+    </LazyMotion>
   );
 }
