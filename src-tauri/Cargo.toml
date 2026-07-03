@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "MicDrop — a configurable desktop soundboard"
 authors = ["you"]
 edition = "2021"
+rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,4 +31,9 @@ symphonia = { version = "0.6.0", features = ["mp3"] }
 rubato = "3.0.0"
 crossbeam-channel = "0.5.15"
 parking_lot = "0.12.5"
+
+# cpal 0.18.x can resolve `windows` (0.61.x) and `windows-core` (0.62.x) to
+# different minors, breaking WASAPI COM impl macros on Windows.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-core = "=0.61.2"
 

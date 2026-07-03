@@ -1,3 +1,5 @@
+allowBuilds:
+  esbuild: true
 onlyBuiltDependencies:
   - esbuild
   - esbuild@0.28.1

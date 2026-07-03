@@ -24,7 +24,7 @@ MicDrop is a configurable desktop soundboard built with Tauri 2.0, React, and Ty
 
 - [Node.js](https://nodejs.org/) 20+
 - [pnpm](https://pnpm.io/)
-- [Rust](https://www.rust-lang.org/tools/install) (for Tauri)
+- [Rust](https://www.rust-lang.org/tools/install) 1.85+ (for Tauri; run `rustup update stable` if builds fail on `edition2024`)
 - Platform dependencies for Tauri: see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
 - [BlackHole 2ch](https://existential.audio/blackhole/) for macOS call routing
 
